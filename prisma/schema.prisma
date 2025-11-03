@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  EMPLOYEE
+  RH
+  DP
+  MANAGER
+  ADMIN
+}
+
+enum RequestStatus {
+  NEW
+  TRIAGE
+  IN_PROGRESS
+  WAITING_INFO
+  DONE
+  CANCELED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      UserRole @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+  requests  Request[] @relation("ByRequester")
+  assigned  Request[] @relation("ByAssignee")
+}
+
+model Category {
+  id              String @id @default(cuid())
+  name            String @unique
+  defaultSlaHours Int    @default(48)
+  subs            Subcategory[]
+  requests        Request[]
+}
+
+model Subcategory {
+  id         String   @id @default(cuid())
+  name       String
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String
+  requests   Request[]
+  @@unique([name, categoryId])
+}
+
+model Request {
+  id            String        @id @default(cuid())
+  code          String        @unique
+  title         String
+  description   String
+  status        RequestStatus @default(NEW)
+  priority      Priority      @default(MEDIUM)
+  requester     User          @relation("ByRequester", fields: [requesterId], references: [id])
+  requesterId   String
+  assignee      User?         @relation("ByAssignee", fields: [assigneeId], references: [id])
+  assigneeId    String?
+  category      Category      @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  subcategory   Subcategory?  @relation(fields: [subcategoryId], references: [id])
+  subcategoryId String?
+  slaDueAt      DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

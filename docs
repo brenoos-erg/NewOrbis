@@ -1,0 +1,262 @@
+📦 1. Estrutura do Projeto
+
+O projeto foi criado com Next.js 14 (App Router), TypeScript, Tailwind CSS e Prisma ORM.
+
+📁 Estrutura principal de pastas
+NewOrbis/
+├── prisma/
+│   ├── schema.prisma          # Modelo do banco
+│   ├── seed.cjs               # Script de seed (dados iniciais)
+│
+├── src/
+│   ├── app/
+│   │   ├── page.tsx           # Página inicial
+│   │   ├── api/
+│   │   │   └── requests/
+│   │   │       └── route.ts   # API REST de solicitações
+│   │   └── requests/
+│   │       └── page.tsx       # Página de listagem de solicitações
+│   ├── lib/
+│   │   └── db.ts              # Cliente Prisma
+│
+├── .env                       # Variáveis de ambiente
+├── package.json               # Dependências e scripts
+├── tsconfig.json              # Configurações TypeScript
+└── next.config.js             # Configuração do Next.js
+
+⚙️ 2. Criação do Projeto
+Criar o app base
+pnpm create next-app neworbis --ts --eslint --tailwind --app
+
+Entrar no diretório
+cd neworbis
+
+🧩 3. Configuração do Banco de Dados
+Opção local (desenvolvimento)
+
+Banco Postgres local via Docker:
+
+docker run --name pg-local -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16
+
+🔐 4. Configuração do .env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres"
+
+NEXT_PUBLIC_SUPABASE_URL="https://alictxghssxtnkyjnwea.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJh..."
+SUPABASE_SERVICE_ROLE_KEY="eyJh..."
+
+
+🔸 O DATABASE_URL local é usado no desenvolvimento.
+🔸 O Supabase será usado em produção (quando o acesso for liberado na rede).
+
+🧱 5. Prisma ORM
+Instalação
+pnpm add prisma @prisma/client
+
+Inicialização
+npx prisma init
+
+🧩 6. Modelo de Dados (prisma/schema.prisma)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  role      String
+  requests  Request[]
+}
+
+model Category {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  defaultSlaHours Int
+  subcategories   Subcategory[]
+  requests        Request[]
+}
+
+model Subcategory {
+  id          Int        @id @default(autoincrement())
+  name        String
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id])
+  requests    Request[]
+
+  @@unique([name, categoryId])
+}
+
+model Request {
+  id            Int        @id @default(autoincrement())
+  code          String
+  title         String
+  description   String?
+  status        String      @default("NEW")
+  categoryId    Int
+  subcategoryId Int
+  requesterId   Int
+  createdAt     DateTime    @default(now())
+
+  category      Category    @relation(fields: [categoryId], references: [id])
+  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id])
+  requester     User        @relation(fields: [requesterId], references: [id])
+}
+
+🧰 7. Migração do Banco
+npx prisma migrate dev -n init
+
+
+Isso cria as tabelas User, Category, Subcategory e Request no banco local.
+
+🌱 8. Seed (dados iniciais)
+
+Arquivo: prisma/seed.cjs
+
+Popula o banco com:
+
+1 usuário demo
+
+2 categorias (RH e DP)
+
+2 subcategorias (“Admissão” e “Folha de Pagamento”)
+
+Execução:
+
+pnpm prisma db seed
+
+
+Saída esperada:
+
+✅ Banco populado com sucesso!
+┌─────────────┬──────────────────────────┬──────────────────────────┐
+│ (index)     │ 0                        │ 1                        │
+├─────────────┼──────────────────────────┼──────────────────────────┤
+│ user        │ 'demo@empresa.com'       │                          │
+│ categorias  │ 'SERVIÇOS DE RH'         │ 'DEPARTAMENTO PESSOAL'   │
+└─────────────┴──────────────────────────┴──────────────────────────┘
+
+🧩 9. Cliente Prisma (src/lib/db.ts)
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ["warn", "error"],
+  });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+🌐 10. API de Solicitações (src/app/api/requests/route.ts)
+
+Endpoints disponíveis:
+
+GET /api/requests
+
+Retorna todas as solicitações.
+
+POST /api/requests
+
+Cria uma nova solicitação.
+
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/src/lib/db";
+
+export async function GET() {
+  const data = await prisma.request.findMany({
+    include: { category: true, subcategory: true, requester: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: NextRequest) {
+  const { title, description, categoryId, subcategoryId, requesterId } = await req.json();
+  const count = await prisma.request.count();
+  const code = `REQ-${new Date().getFullYear()}-${String(count + 1).padStart(5, "0")}`;
+
+  const created = await prisma.request.create({
+    data: {
+      code,
+      title,
+      description,
+      categoryId,
+      subcategoryId,
+      requesterId,
+      status: "NEW",
+    },
+  });
+
+  return NextResponse.json(created, { status: 201 });
+}
+
+🖥️ 11. Página /requests (Listagem)
+
+src/app/requests/page.tsx
+
+"use client";
+
+import { useEffect, useState } from "react";
+
+export default function RequestsPage() {
+  const [requests, setRequests] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/requests")
+      .then((r) => r.json())
+      .then(setRequests);
+  }, []);
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-6">Solicitações</h1>
+      {requests.length === 0 ? (
+        <p>Nenhuma solicitação encontrada.</p>
+      ) : (
+        <table className="min-w-full border border-gray-300">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="p-2 text-left">Código</th>
+              <th className="p-2 text-left">Título</th>
+              <th className="p-2 text-left">Categoria</th>
+              <th className="p-2 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r: any) => (
+              <tr key={r.id} className="border-t">
+                <td className="p-2">{r.code}</td>
+                <td className="p-2">{r.title}</td>
+                <td className="p-2">{r.category?.name}</td>
+                <td className="p-2">{r.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+🧠 12. Comandos úteis
+Ação	Comando
+Iniciar servidor local	pnpm dev
+Migrar banco	npx prisma migrate dev -n init
+Abrir painel do Prisma	npx prisma studio
+Executar seed	pnpm prisma db seed
+Gerar client Prisma	npx prisma generate
+🚀 13. Status atual do sistema
+
+✅ Frontend Next.js funcionando
+✅ Banco Postgres local via Docker rodando
+✅ Schema e migrações aplicadas
+✅ Seed populado com usuários e categorias
+✅ API /api/requests pronta e conectada
+✅ Página /requests renderizando listagem de solicitações
