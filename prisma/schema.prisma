@@ -1,80 +1,52 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum UserRole {
-  EMPLOYEE
-  RH
+RH
   DP
-  MANAGER
-  ADMIN
 }
 
-enum RequestStatus {
-  NEW
-  TRIAGE
-  IN_PROGRESS
-  WAITING_INFO
-  DONE
-  CANCELED
-}
-
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  role      UserRole @default(EMPLOYEE)
-  createdAt DateTime @default(now())
-  requests  Request[] @relation("ByRequester")
-  assigned  Request[] @relation("ByAssignee")
-}
-
-model Category {
-  id              String @id @default(cuid())
-  name            String @unique
-  defaultSlaHours Int    @default(48)
-  subs            Subcategory[]
-  requests        Request[]
-}
-
-model Subcategory {
-  id         String   @id @default(cuid())
-  name       String
-  category   Category @relation(fields: [categoryId], references: [id])
-  categoryId String
-  requests   Request[]
-  @@unique([name, categoryId])
+enum RequestCategory {
+  ferias
+  admissao
+  desligamento
+  beneficios
+  outros
 }
 
 model Request {
-  id            String        @id @default(cuid())
-  code          String        @unique
-  title         String
-  description   String
-  status        RequestStatus @default(NEW)
-  priority      Priority      @default(MEDIUM)
-  requester     User          @relation("ByRequester", fields: [requesterId], references: [id])
-  requesterId   String
-  assignee      User?         @relation("ByAssignee", fields: [assigneeId], references: [id])
-  assigneeId    String?
-  category      Category      @relation(fields: [categoryId], references: [id])
-  categoryId    String
-  subcategory   Subcategory?  @relation(fields: [subcategoryId], references: [id])
-  subcategoryId String?
-  slaDueAt      DateTime?
-  closedAt      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String            @id @default(uuid())
+  title       String
+  description String
+  category    RequestCategory
+  department  Department
+  status      RequestStatus     @default(aberta)
+  priority    RequestPriority   @default(media)
+  requesterId String
+  slaDueAt    DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  assignees   RequestAssignee[]
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([department])
+}
+
+model Profile {
+  id               String            @id @default(uuid())
+  fullName         String?
+  department       Department?
+  avatarUrl        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  requestAssignees RequestAssignee[]
+}
+
+model RequestAssignee {
+  id        String   @id @default(uuid())
+  requestId String
+  profileId String
+  createdAt DateTime @default(now())
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, profileId])
 }

@@ -1,8 +1,7 @@
-+32
--0
-
 export type RequestStatus = "aberta" | "em_andamento" | "concluida" | "cancelada";
 export type RequestCategory = "ferias" | "admissao" | "desligamento" | "beneficios" | "outros";
+export type RequestPriority = "baixa" | "media" | "alta";
+export type RequestDepartment = "RH" | "DP";
 
 export interface Request {
   id: string;
@@ -10,9 +9,9 @@ export interface Request {
   description: string;
   category: RequestCategory;
   requesterId: string;
-  department: "RH" | "DP";
+  department: RequestDepartment;
   status: RequestStatus;
-  priority: "baixa" | "media" | "alta";
+  priority: RequestPriority;
   createdAt: string;
   updatedAt: string;
   slaDueAt?: string | null;
@@ -30,6 +29,8 @@ export interface CreateRequestPayload {
   title: string;
   description: string;
   category: RequestCategory;
-  department: "RH" | "DP";
-  priority: "baixa" | "media" | "alta";
+  department: RequestDepartment;
+  priority: RequestPriority;
 }
+
+export type RequestValidationErrors = Record<string, string[] | undefined>;

@@ -1,51 +1,88 @@
-// prisma/seed.cjs
 const { PrismaClient } = require("@prisma/client");
+
 const prisma = new PrismaClient();
 
 async function main() {
-  // Usuário inicial
-  const user = await prisma.user.upsert({
-    where: { email: "demo@empresa.com" },
-    update: {},
-    create: {
-      name: "Usuário Demo",
-      email: "demo@empresa.com",
-      role: "EMPLOYEE",
+  const requesterId = process.env.DEFAULT_REQUESTER_ID ?? "local-user";
+
+  const [ana, bruno] = await Promise.all([
+    prisma.profile.upsert({
+      where: { id: "profile-ana" },
+      update: {
+        fullName: "Ana Souza",
+        department: "RH",
+      },
+      create: {
+        id: "profile-ana",
+        fullName: "Ana Souza",
+        department: "RH",
+      },
+    }),
+    prisma.profile.upsert({
+      where: { id: "profile-bruno" },
+      update: {
+        fullName: "Bruno Lima",
+        department: "DP",
+      },
+      create: {
+        id: "profile-bruno",
+        fullName: "Bruno Lima",
+        department: "DP",
+      },
+    }),
+  ]);
+
+  const existingRequests = await prisma.request.count();
+  if (existingRequests > 0) {
+    console.log("ℹ️  Solicitações já existentes. Nenhum seed adicional foi aplicado.");
+    return;
+  }
+
+  const onboarding = await prisma.request.create({
+    data: {
+      title: "Onboarding de novo colaborador",
+      description: "Organizar processo de integração para o novo analista de marketing.",
+      category: "admissao",
+      department: "RH",
+      priority: "alta",
+      requesterId,
+      status: "em_andamento",
     },
   });
 
-  // Categorias e Subcategorias
-  const rh = await prisma.category.upsert({
-    where: { name: "SERVIÇOS DE RH" },
-    update: {},
-    create: { name: "SERVIÇOS DE RH", defaultSlaHours: 48 },
+  await prisma.requestAssignee.create({
+    data: {
+      requestId: onboarding.id,
+      profileId: ana.id,
+    },
   });
 
-  const dp = await prisma.category.upsert({
-    where: { name: "DEPARTAMENTO PESSOAL" },
-    update: {},
-    create: { name: "DEPARTAMENTO PESSOAL", defaultSlaHours: 72 },
+  const benefits = await prisma.request.create({
+    data: {
+      title: "Ajuste de benefícios",
+      description: "Atualizar plano de saúde dos colaboradores do time financeiro.",
+      category: "beneficios",
+      department: "DP",
+      priority: "media",
+      requesterId,
+    },
   });
 
-  await prisma.subcategory.upsert({
-    where: { name_categoryId: { name: "Admissão", categoryId: rh.id } },
-    update: {},
-    create: { name: "Admissão", categoryId: rh.id },
-  });
-
-  await prisma.subcategory.upsert({
-    where: { name_categoryId: { name: "Folha de Pagamento", categoryId: dp.id } },
-    update: {},
-    create: { name: "Folha de Pagamento", categoryId: dp.id },
+  await prisma.requestAssignee.create({
+    data: {
+      requestId: benefits.id,
+      profileId: bruno.id,
+    },
   });
 
   console.log("✅ Banco populado com sucesso!");
-  console.table({ user: user.email, categorias: [rh.name, dp.name] });
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error("❌ Falha ao executar o seed do banco:", error);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

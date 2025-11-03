@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 
 import { RequestList } from "@/components/RequestList";
 import { RequestSummary } from "@/components/RequestSummary";

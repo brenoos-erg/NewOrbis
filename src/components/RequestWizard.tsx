@@ -3,33 +3,30 @@
 import { useTransition, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 
 import { createRequest } from "@/app/requests/actions";
-import type { CreateRequestPayload } from "@/types/request";
+import { createRequestSchema } from "@/lib/validations/request";
+import type { CreateRequestInput } from "@/lib/validations/request";
 
-const requestSchema = z.object({
-  title: z.string().min(3, "Informe pelo menos 3 caracteres"),
-  description: z.string().min(10, "Descreva com mais detalhes"),
-  category: z.enum(["ferias", "admissao", "desligamento", "beneficios", "outros"]),
-  department: z.enum(["RH", "DP"]),
-  priority: z.enum(["baixa", "media", "alta"])
-});
-
-type RequestFormData = z.infer<typeof requestSchema>;
+interface FeedbackState {
+  type: "success" | "error";
+  message: string;
+}
 
 export function RequestWizard() {
   const [isPending, startTransition] = useTransition();
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors }
-  } = useForm<RequestFormData>({
-    resolver: zodResolver(requestSchema),
+  } = useForm<CreateRequestInput>({
+    resolver: zodResolver(createRequestSchema),
     defaultValues: {
+      title: "",
+      description: "",
       department: "RH",
       priority: "media",
       category: "outros"
@@ -39,18 +36,25 @@ export function RequestWizard() {
   const onSubmit = handleSubmit((data) => {
     startTransition(async () => {
       setFeedback(null);
-      const result = await createRequest(data as CreateRequestPayload);
+      const result = await createRequest(data);
 
       if (!result.success) {
-        if ("errors" in result && result.errors) {
-          setFeedback("Revise os campos destacados e tente novamente.");
-        } else {
-          setFeedback(result.message ?? "Não foi possível registrar a solicitação.");
+        if (result.errors) {
+          setFeedback({
+            type: "error",
+            message: "Revise os campos destacados e tente novamente."
+          });
+          return;
         }
+
+        setFeedback({
+          type: "error",
+          message: result.message ?? "Não foi possível registrar a solicitação."
+        });
         return;
       }
 
-      setFeedback("Solicitação registrada com sucesso!");
+      setFeedback({ type: "success", message: "Solicitação registrada com sucesso!" });
       reset({
         title: "",
         description: "",
@@ -76,21 +80,7 @@ export function RequestWizard() {
             Título
           </label>
           <input
-            id="title"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            placeholder="Ex.: Solicitação de férias"
-            {...register("title")}
-          />
-          {errors.title && <span className="text-xs text-red-600">{errors.title.message}</span>}
-        </div>
-
-        <div className="grid gap-1">
-          <label className="text-sm font-medium text-slate-700" htmlFor="description">
-            Descrição
-          </label>
-          <textarea
-            id="description"
-            className="min-h-[120px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+@@ -86,58 +98,69 @@ export function RequestWizard() {
             placeholder="Explique o contexto, datas, anexos necessários, etc."
             {...register("description")}
           />
@@ -116,7 +106,11 @@ export function RequestWizard() {
             <label className="text-sm font-medium text-slate-700" htmlFor="department">
               Departamento
             </label>
-            <select id="department" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" {...register("department")}>
+            <select
+              id="department"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              {...register("department")}
+            >
               <option value="RH">RH</option>
               <option value="DP">DP</option>
             </select>
@@ -136,7 +130,14 @@ export function RequestWizard() {
           </div>
         </div>
 
-        {feedback && <p className="text-sm text-slate-600">{feedback}</p>}
+        {feedback && (
+          <p
+            className={`text-sm ${feedback.type === "success" ? "text-emerald-600" : "text-red-600"}`}
+            role="status"
+          >
+            {feedback.message}
+          </p>
+        )}
 
         <button
           className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"

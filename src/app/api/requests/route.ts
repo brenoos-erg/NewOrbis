@@ -1,44 +1,73 @@
 import { NextResponse } from "next/server";
 
-import { createSupabaseServerClient } from "@/lib/supabaseClient";
-import type { CreateRequestPayload } from "@/types/request";
+import { DEFAULT_REQUESTER_ID } from "@/lib/constants";
+import { prisma } from "@/lib/db";
+import { mapRequest } from "@/lib/mappers/request";
+import type { PrismaRequestWithRelations } from "@/lib/mappers/request";
+import { createRequestSchema } from "@/lib/validations/request";
+
+async function fetchRequests(): Promise<PrismaRequestWithRelations[]> {
+  return prisma.request.findMany({
+    include: {
+      assignees: {
+        include: {
+          profile: true
+        }
+      }
+    },
+    orderBy: { createdAt: "desc" }
+  });
+}
 
 export async function GET() {
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("requests")
-    .select("*, assignees:request_assignees(id, profiles(full_name, avatar_url)))")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ message: "Não foi possível carregar as solicitações" }, { status: 500 });
+  try {
+    const requests = await fetchRequests();
+    return NextResponse.json(requests.map(mapRequest));
+  } catch (error) {
+    console.error("Erro ao carregar solicitações", error);
+    return NextResponse.json(
+      { message: "Não foi possível carregar as solicitações." },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json(data);
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as CreateRequestPayload;
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
+  let payload: unknown;
 
-  if (error || !data.user) {
-    return NextResponse.json({ message: "Não autenticado" }, { status: 401 });
+  try {
+    payload = await request.json();
+  } catch (error) {
+    console.error("Erro ao processar JSON da requisição", error);
+    return NextResponse.json({ message: "Payload inválido." }, { status: 400 });
   }
 
-  const { error: insertError } = await supabase.from("requests").insert({
-    title: body.title,
-    description: body.description,
-    category: body.category,
-    department: body.department,
-    priority: body.priority,
-    requester_id: data.user.id,
-    status: "aberta"
-  });
-
-  if (insertError) {
-    return NextResponse.json({ message: "Erro ao registrar solicitação" }, { status: 400 });
+  const validation = createRequestSchema.safeParse(payload);
+  if (!validation.success) {
+    return NextResponse.json(
+      { message: "Dados inválidos", errors: validation.error.flatten().fieldErrors },
+      { status: 422 }
+    );
   }
 
-  return NextResponse.json({ success: true }, { status: 201 });
+  try {
+    const created = await prisma.request.create({
+      data: {
+        ...validation.data,
+        requesterId: DEFAULT_REQUESTER_ID
+      },
+      include: {
+        assignees: {
+          include: {
+            profile: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(mapRequest(created), { status: 201 });
+  } catch (error) {
+    console.error("Erro ao registrar solicitação", error);
+    return NextResponse.json({ message: "Erro ao registrar solicitação." }, { status: 500 });
+  }
 }

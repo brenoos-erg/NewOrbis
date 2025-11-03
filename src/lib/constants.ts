@@ -1,0 +1,1 @@
+export const DEFAULT_REQUESTER_ID = process.env.DEFAULT_REQUESTER_ID ?? "local-user";

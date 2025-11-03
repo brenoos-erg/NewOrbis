@@ -2,26 +2,31 @@
 
 import { useMemo, useState } from "react";
 
-import type { RequestWithAssignees } from "@/types/request";
+import type { RequestWithAssignees, RequestStatus } from "@/types/request";
 
 interface RequestListProps {
   requests: RequestWithAssignees[];
 }
 
-const statusLabels: Record<RequestWithAssignees["status"], string> = {
+const statusLabels: Record<RequestStatus, string> = {
   aberta: "Aberta",
   em_andamento: "Em andamento",
   concluida: "Concluída",
   cancelada: "Cancelada"
 };
 
+const dateFormatter = new Intl.DateTimeFormat("pt-BR");
+
 export function RequestList({ requests }: RequestListProps) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<RequestWithAssignees["status"] | "todos">("todos");
+  const [statusFilter, setStatusFilter] = useState<RequestStatus | "todos">("todos");
 
   const filteredRequests = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
     return requests.filter((request) => {
-      const matchSearch = request.title.toLowerCase().includes(search.toLowerCase());
+      const matchSearch =
+        normalizedSearch.length === 0 || request.title.toLowerCase().includes(normalizedSearch);
       const matchStatus = statusFilter === "todos" || request.status === statusFilter;
       return matchSearch && matchStatus;
     });
@@ -34,11 +39,12 @@ export function RequestList({ requests }: RequestListProps) {
           <h2 className="text-lg font-semibold text-slate-900">Solicitações recentes</h2>
           <p className="text-xs text-slate-500">Visualize e acompanhe as demandas de RH e DP em tempo real.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
+            aria-label="Filtrar por status"
             className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as RequestWithAssignees["status"] | "todos")}
+            onChange={(event) => setStatusFilter(event.target.value as RequestStatus | "todos")}
           >
             <option value="todos">Todos os status</option>
             {Object.entries(statusLabels).map(([key, label]) => (
@@ -48,7 +54,8 @@ export function RequestList({ requests }: RequestListProps) {
             ))}
           </select>
           <input
-            className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            aria-label="Buscar solicitação por título"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm sm:w-48"
             placeholder="Buscar por título"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -77,8 +84,8 @@ export function RequestList({ requests }: RequestListProps) {
               <footer className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                 <span>Categoria: {request.category}</span>
                 <span>Prioridade: {request.priority}</span>
-                <span>Criada em: {new Date(request.createdAt).toLocaleDateString("pt-BR")}</span>
-                {request.slaDueAt && <span>SLA: {new Date(request.slaDueAt).toLocaleDateString("pt-BR")}</span>}
+                <span>Criada em: {dateFormatter.format(new Date(request.createdAt))}</span>
+                {request.slaDueAt && <span>SLA: {dateFormatter.format(new Date(request.slaDueAt))}</span>}
                 {request.assignees.length > 0 && (
                   <span>
                     Responsáveis: {request.assignees.map((assignee) => assignee.name).join(", ")}

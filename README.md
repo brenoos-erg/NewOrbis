@@ -7,22 +7,24 @@ Portal web para abertura, acompanhamento e gestão de solicitações de Recursos
 - [Next.js 14](https://nextjs.org/) com App Router e Server Actions
 - [React 18](https://react.dev/) + [React Hook Form](https://react-hook-form.com/) para formulários
 - [Zod](https://zod.dev/) para validação
-- [Supabase](https://supabase.com/) como banco de dados PostgreSQL gerenciado, autenticação e storage
+- [Prisma ORM](https://www.prisma.io/) com PostgreSQL executando em um container Docker local
 
-## 🚀 Começando
+## 🚀 Como executar o projeto localmente
 
-1. **Configure o Supabase**
-   - Crie um projeto em [app.supabase.com](https://app.supabase.com/).
-   - Copie as variáveis `Project URL` e `anon key` em `Project Settings > API`.
-   - Execute o script de migração `supabase/migrations/20240501120000_initial_schema.sql` através do SQL editor do Supabase para criar tabelas, relacionamentos e políticas de segurança.
+1. **Suba o banco de dados local**
+
+   O projeto inclui um `docker-compose.yml` para subir um PostgreSQL configurado com usuário e senha padrão `postgres`.
+
+   ```bash
+   docker compose up -d
+   ```
 
 2. **Configure as variáveis de ambiente**
 
-   Crie um arquivo `.env.local` na raiz do projeto com:
+   Copie o arquivo `.env.example` para `.env` (ou `.env.local` se preferir) e ajuste a URL do banco caso necessário.
 
    ```bash
-   NEXT_PUBLIC_SUPABASE_URL="https://<sua-instancia>.supabase.co"
-   NEXT_PUBLIC_SUPABASE_ANON_KEY="<sua-anon-key>"
+   cp .env.example .env
    ```
 
 3. **Instale as dependências**
@@ -32,7 +34,16 @@ Portal web para abertura, acompanhamento e gestão de solicitações de Recursos
    # ou npm install / yarn install
    ```
 
-4. **Execute o projeto**
+4. **Execute as migrações e o seed**
+
+   ```bash
+   pnpm db:migrate
+   pnpm db:seed
+   ```
+
+   > Caso seja o primeiro contato com o Prisma, rode `npx prisma generate` para garantir que o cliente foi gerado.
+
+5. **Execute o projeto**
 
    ```bash
    pnpm dev
@@ -45,8 +56,7 @@ Portal web para abertura, acompanhamento e gestão de solicitações de Recursos
 - Landing page com visão geral do portal.
 - Painel `/requests` para listar e filtrar solicitações de RH/DP.
 - Formulário com validação para abertura de novas solicitações.
-- Integração com Supabase usando Server Actions para listar/criar registros.
-- Migração SQL com tabelas, relacionamentos e políticas de Row Level Security (RLS), incluindo perfis sincronizados com o Supabase Auth.
+- Persistência via Prisma + PostgreSQL local.
 
 ## 📤 Publicar no seu repositório
 
@@ -63,10 +73,14 @@ Se o repositório remoto já existir com histórico, faça `git pull` antes do `
 
 ## 🗺️ Próximos passos sugeridos
 
-- Implementar autenticação com Supabase Auth (magic link ou SSO corporativo) utilizando os perfis criados automaticamente na migração.
+- Implementar autenticação com NextAuth ou outra solução integrada ao PostgreSQL.
 - Incluir etapa de aprovação multi-nível com SLA e registro de timeline.
-- Adicionar notificações por e-mail (Supabase Functions + Postmark/Resend).
+- Adicionar notificações por e-mail (Resend, Postmark, etc.).
 - Construir dashboards com métricas de SLA, volume por categoria e tempo médio de atendimento.
+
+## 📚 Documentação complementar
+
+- [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) — guia detalhado da stack local com Docker, Prisma e scripts úteis.
 
 ## 📄 Licença
 
